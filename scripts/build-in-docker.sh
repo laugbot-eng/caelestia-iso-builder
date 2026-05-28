@@ -232,11 +232,11 @@ LOADER
 
 cat > "$ISO_DIR/efiboot/loader/entries/caelestia.conf" <<'ENTRY'
 title   Caelestia Linux
-linux   /%INSTALL_DIR%/boot/vmlinuz-linux
+linux   /%INSTALL_DIR%/boot/%ARCH%/vmlinuz-linux
 initrd  /%INSTALL_DIR%/boot/intel-ucode.img
 initrd  /%INSTALL_DIR%/boot/amd-ucode.img
-initrd  /%INSTALL_DIR%/boot/initramfs-linux.img
-options archisobasedir=%INSTALL_DIR% archisolabel=%ISO_LABEL% quiet splash
+initrd  /%INSTALL_DIR%/boot/%ARCH%/initramfs-linux.img
+options archisobasedir=%INSTALL_DIR% archisosearchuuid=%ARCHISO_UUID% quiet splash
 ENTRY
 
 # ── Configuración del sistema ───────────────────────────────
