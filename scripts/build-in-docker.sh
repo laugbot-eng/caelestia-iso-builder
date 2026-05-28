@@ -105,7 +105,6 @@ bluez-utils
 # ── Utilidades ──
 htop
 btop
-neofetch
 fastfetch
 unzip
 zip
@@ -296,7 +295,7 @@ alias ll='ls -lah'
 alias la='ls -A'
 alias grep='grep --color=auto'
 PS1='\[\e[0;32m\]\u@caelestia\[\e[0m\]:\[\e[0;34m\]\w\[\e[0m\]\$ '
-neofetch || fastfetch
+fastfetch
 caelestia-shell
 BASHRC
 
