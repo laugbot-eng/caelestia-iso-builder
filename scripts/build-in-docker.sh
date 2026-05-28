@@ -41,6 +41,7 @@ cat > "$ISO_DIR/pacman.conf" <<'PACMAN'
 ParallelDownloads = 5
 SigLevel = Required DatabaseOptional
 LocalFileSigLevel = Optional
+Architecture = auto
 
 [core]
 Include = /etc/pacman.d/mirrorlist
