@@ -22,7 +22,7 @@ iso_publisher="Caelestia Linux <https://github.com/laugbot-eng/caelestia-iso-bui
 iso_application="Caelestia Linux Live"
 iso_version="$(date +%Y.%m)"
 install_dir="arch"
-bootmodes=('bios.syslinux' 'uefi.systemd-boot.esp' 'uefi.systemd-boot.eltorito')
+bootmodes=('bios.syslinux' 'uefi.systemd-boot')
 arch="x86_64"
 pacman_conf="pacman.conf"
 airootfs_image_type="squashfs"
@@ -46,9 +46,6 @@ LocalFileSigLevel = Optional
 Include = /etc/pacman.d/mirrorlist
 
 [extra]
-Include = /etc/pacman.d/mirrorlist
-
-[community]
 Include = /etc/pacman.d/mirrorlist
 PACMAN
 
@@ -132,8 +129,115 @@ adobe-source-code-pro-fonts
 
 # ── Herramientas extra ──
 firefox-i18n-es-es
-gdm
 PACKAGES
+
+# ── Syslinux BIOS config ────────────────────────────────────
+mkdir -p "$ISO_DIR/syslinux"
+
+cat > "$ISO_DIR/syslinux/syslinux.cfg" <<'SYSCFG'
+DEFAULT select
+
+LABEL select
+COM32 whichsys.c32
+APPEND -pxe- pxe -sys- sys -iso- sys
+
+LABEL pxe
+CONFIG archiso_pxe.cfg
+
+LABEL sys
+CONFIG archiso_sys.cfg
+SYSCFG
+
+cat > "$ISO_DIR/syslinux/archiso_sys.cfg" <<'SYSSYS'
+INCLUDE archiso_head.cfg
+
+DEFAULT arch
+TIMEOUT 150
+
+INCLUDE archiso_sys-linux.cfg
+
+INCLUDE archiso_tail.cfg
+SYSSYS
+
+cat > "$ISO_DIR/syslinux/archiso_sys-linux.cfg" <<'SYSLNX'
+LABEL arch
+TEXT HELP
+Boot Caelestia Linux live on BIOS.
+ENDTEXT
+MENU LABEL Caelestia Linux (%ARCH%, BIOS)
+LINUX /%INSTALL_DIR%/boot/%ARCH%/vmlinuz-linux
+INITRD /%INSTALL_DIR%/boot/%ARCH%/initramfs-linux.img
+APPEND archisobasedir=%INSTALL_DIR% archisosearchuuid=%ARCHISO_UUID% quiet splash
+
+# Accessibility boot option
+LABEL archspeech
+TEXT HELP
+Boot Caelestia Linux on BIOS with speakup screen reader.
+ENDTEXT
+MENU LABEL Caelestia Linux (%ARCH%, BIOS) with ^speech
+LINUX /%INSTALL_DIR%/boot/%ARCH%/vmlinuz-linux
+INITRD /%INSTALL_DIR%/boot/%ARCH%/initramfs-linux.img
+APPEND archisobasedir=%INSTALL_DIR% archisosearchuuid=%ARCHISO_UUID% accessibility=on
+SYSLNX
+
+cat > "$ISO_DIR/syslinux/archiso_pxe.cfg" <<'PXESYS'
+INCLUDE archiso_head.cfg
+
+INCLUDE archiso_pxe-linux.cfg
+
+INCLUDE archiso_tail.cfg
+PXESYS
+
+cat > "$ISO_DIR/syslinux/archiso_pxe-linux.cfg" <<'PXELNX'
+LABEL arch_nbd
+TEXT HELP
+Boot Caelestia Linux using NBD.
+ENDTEXT
+MENU LABEL Caelestia Linux (%ARCH%, NBD)
+LINUX ::/%INSTALL_DIR%/boot/%ARCH%/vmlinuz-linux
+INITRD ::/%INSTALL_DIR%/boot/%ARCH%/initramfs-linux.img
+APPEND archisobasedir=%INSTALL_DIR% archisosearchuuid=%ARCHISO_UUID% archiso_nbd_srv=${pxeserver}
+SYSAPPEND 3
+
+LABEL arch_nfs
+TEXT HELP
+Boot Caelestia Linux using NFS.
+ENDTEXT
+MENU LABEL Caelestia Linux (%ARCH%, NFS)
+LINUX ::/%INSTALL_DIR%/boot/%ARCH%/vmlinuz-linux
+INITRD ::/%INSTALL_DIR%/boot/%ARCH%/initramfs-linux.img
+APPEND archisobasedir=%INSTALL_DIR% archiso_nfs_srv=${pxeserver}:/run/archiso/bootmnt
+SYSAPPEND 3
+
+LABEL arch_http
+TEXT HELP
+Boot Caelestia Linux using HTTP.
+ENDTEXT
+MENU LABEL Caelestia Linux (%ARCH%, HTTP)
+LINUX ::/%INSTALL_DIR%/boot/%ARCH%/vmlinuz-linux
+INITRD ::/%INSTALL_DIR%/boot/%ARCH%/initramfs-linux.img
+APPEND archisobasedir=%INSTALL_DIR% archiso_http_srv=http://${pxeserver}/
+SYSAPPEND 3
+PXELNX
+
+# ── EFI systemd-boot entries ────────────────────────────────
+mkdir -p "$ISO_DIR/efiboot/loader/entries"
+
+cat > "$ISO_DIR/efiboot/loader/loader.conf" <<'LOADER'
+default caelestia
+timeout 3
+console-mode max
+editor no
+LOADER
+
+cat > "$ISO_DIR/efiboot/loader/entries/caelestia.conf" <<'ENTRY'
+title   Caelestia Linux
+linux   /%INSTALL_DIR%/boot/vmlinuz-linux
+initrd  /%INSTALL_DIR%/boot/intel-ucode.img
+initrd  /%INSTALL_DIR%/boot/amd-ucode.img
+initrd  /%INSTALL_DIR%/boot/initramfs-linux.img
+options archisobasedir=%INSTALL_DIR% archisolabel=%ISO_LABEL% quiet splash
+ENTRY
 
 # ── Configuración del sistema ───────────────────────────────
 mkdir -p "$ISO_DIR/airootfs/etc"
@@ -156,19 +260,6 @@ echo "LANG=es_ES.UTF-8" > "$ISO_DIR/airootfs/etc/locale.conf"
 
 # keymap
 echo "KEYMAP=es" > "$ISO_DIR/airootfs/etc/vconsole.conf"
-
-# enable services
-mkdir -p "$ISO_DIR/airootfs/etc/systemd/system/multi-user.target.wants"
-cat > "$ISO_DIR/airootfs/etc/systemd/system/multi-user.target.wants/NetworkManager.service" <<'SVCLNK'
-[Unit]
-Description=Network Manager
-[Service]
-Type=dbus
-BusName=org.freedesktop.NetworkManager
-ExecStart=/usr/bin/NetworkManager --no-daemon
-[Install]
-WantedBy=multi-user.target
-SVCLNK
 
 # ── caelestia-shell ─────────────────────────────────────────
 cat > "$ISO_DIR/airootfs/usr/local/bin/caelestia-shell" <<'CSHELL'
@@ -212,25 +303,6 @@ BASHRC
 mkdir -p "$ISO_DIR/airootfs/etc/sudoers.d"
 echo "root ALL=(ALL) ALL" > "$ISO_DIR/airootfs/etc/sudoers.d/root"
 echo "live ALL=(ALL) NOPASSWD: ALL" > "$ISO_DIR/airootfs/etc/sudoers.d/live"
-
-# ── EFI boot entries ───────────────────────────────────────
-mkdir -p "$ISO_DIR/efiboot/loader/entries"
-
-cat > "$ISO_DIR/efiboot/loader/loader.conf" <<'LOADER'
-default caelestia
-timeout 3
-console-mode max
-editor no
-LOADER
-
-cat > "$ISO_DIR/efiboot/loader/entries/caelestia.conf" <<'ENTRY'
-title   Caelestia Linux
-linux   /%INSTALL_DIR%/boot/vmlinuz-linux
-initrd  /%INSTALL_DIR%/boot/intel-ucode.img
-initrd  /%INSTALL_DIR%/boot/amd-ucode.img
-initrd  /%INSTALL_DIR%/boot/initramfs-linux.img
-options archisobasedir=%INSTALL_DIR% archisolabel=%ISO_LABEL% quiet splash
-ENTRY
 
 # ── Construir ISO ───────────────────────────────────────────
 cd /tmp
