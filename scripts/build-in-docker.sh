@@ -22,9 +22,7 @@ iso_publisher="Caelestia Linux <https://github.com/laugbot-eng/caelestia-iso-bui
 iso_application="Caelestia Linux Live"
 iso_version="$(date +%Y.%m)"
 install_dir="arch"
-bootmodes=('bios.syslinux.mbr' 'bios.syslinux.eltorito'
-           'uefi-ia32.systemd-boot.esp' 'uefi-x64.systemd-boot.esp'
-           'uefi-ia32.systemd-boot.eltorito' 'uefi-x64.systemd-boot.eltorito')
+bootmodes=('bios.syslinux' 'uefi.systemd-boot.esp' 'uefi.systemd-boot.eltorito')
 arch="x86_64"
 pacman_conf="pacman.conf"
 airootfs_image_type="squashfs"
@@ -63,6 +61,9 @@ base
 base-devel
 linux
 linux-firmware
+amd-ucode
+intel-ucode
+syslinux
 sudo
 vim
 networkmanager
@@ -211,6 +212,25 @@ BASHRC
 mkdir -p "$ISO_DIR/airootfs/etc/sudoers.d"
 echo "root ALL=(ALL) ALL" > "$ISO_DIR/airootfs/etc/sudoers.d/root"
 echo "live ALL=(ALL) NOPASSWD: ALL" > "$ISO_DIR/airootfs/etc/sudoers.d/live"
+
+# ── EFI boot entries ───────────────────────────────────────
+mkdir -p "$ISO_DIR/efiboot/loader/entries"
+
+cat > "$ISO_DIR/efiboot/loader/loader.conf" <<'LOADER'
+default caelestia
+timeout 3
+console-mode max
+editor no
+LOADER
+
+cat > "$ISO_DIR/efiboot/loader/entries/caelestia.conf" <<'ENTRY'
+title   Caelestia Linux
+linux   /%INSTALL_DIR%/boot/vmlinuz-linux
+initrd  /%INSTALL_DIR%/boot/intel-ucode.img
+initrd  /%INSTALL_DIR%/boot/amd-ucode.img
+initrd  /%INSTALL_DIR%/boot/initramfs-linux.img
+options archisobasedir=%INSTALL_DIR% archisolabel=%ISO_LABEL% quiet splash
+ENTRY
 
 # ── Construir ISO ───────────────────────────────────────────
 cd /tmp
