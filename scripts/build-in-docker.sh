@@ -221,6 +221,14 @@ echo "caelestia-linux" > "$PROFILE_DIR/airootfs/etc/hostname"
 # ── Teclado español ─────────────────────────────────────────
 echo "KEYMAP=es" > "$PROFILE_DIR/airootfs/etc/vconsole.conf"
 
+# ── Forzar módulos de CD-ROM en initramfs ───────────────────
+cat > "$PROFILE_DIR/airootfs/etc/mkinitcpio.conf.d/archiso.conf" <<'MKINIT'
+MODULES=(ata_piix sr_mod cdrom isofs)
+HOOKS=(base udev microcode modconf kms memdisk archiso archiso_loop_mnt archiso_pxe_common archiso_pxe_nbd archiso_pxe_http archiso_pxe_nfs block filesystems keyboard)
+COMPRESSION="xz"
+COMPRESSION_OPTIONS=(-9e)
+MKINIT
+
 # ── Construir ISO ───────────────────────────────────────────
 cd /tmp
 echo "=== Construyendo ISO ==="
