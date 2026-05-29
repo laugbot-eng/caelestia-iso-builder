@@ -1,6 +1,7 @@
 #!/bin/bash
 # ============================================================
-# Build script — usa el perfil releng de archiso como base
+# Build script — usa el perfil releng TAL CUAL, solo personaliza
+# paquetes, hostname, y añade caelestia-shell
 # ============================================================
 set -euo pipefail
 
@@ -10,10 +11,10 @@ PROFILE_DIR="/tmp/archlive-${ISO_NAME}"
 
 mkdir -p "$OUTPUT_DIR"
 
-# ── Copiar perfil releng como base ──────────────────────────
+# ── Copiar perfil releng COMPLETO (incluyendo boot configs) ──
 cp -r /usr/share/archiso/configs/releng/ "$PROFILE_DIR"
 
-# ── Personalizar profiledef.sh ──────────────────────────────
+# ── SOLO cambiar profiledef.sh (nombre, etiqueta, publisher) ──
 cat > "$PROFILE_DIR/profiledef.sh" <<'PROFILE'
 #!/usr/bin/env bash
 # shellcheck disable=SC2034
@@ -24,38 +25,112 @@ iso_publisher="Caelestia Linux <https://github.com/laugbot-eng/caelestia-iso-bui
 iso_application="Caelestia Linux Live"
 iso_version="$(date +%Y.%m)"
 install_dir="arch"
+buildmodes=('iso')
 bootmodes=('bios.syslinux'
            'uefi.systemd-boot')
 arch="x86_64"
 pacman_conf="pacman.conf"
 airootfs_image_type="squashfs"
-airootfs_image_tool_options=('-comp' 'xz' '-Xbcj' 'x86')
+airootfs_image_tool_options=('-comp' 'xz' '-Xbcj' 'x86' '-b' '1M' '-Xdict-size' '1M')
 bootstrap_tarball_compression=('zstd' '-c' '-T0' '--auto-threads=logical' '--long' '-19')
 file_permissions=(
   ["/etc/shadow"]="0:0:400"
+  ["/root"]="0:0:750"
   ["/root/.automated_script.sh"]="0:0:755"
+  ["/root/.gnupg"]="0:0:700"
+  ["/usr/local/bin/choose-mirror"]="0:0:755"
+  ["/usr/local/bin/Installation_guide"]="0:0:755"
+  ["/usr/local/bin/livecd-sound"]="0:0:755"
   ["/usr/local/bin/caelestia-shell"]="0:0:755"
 )
 PROFILE
 
-# ── Personalizar paquetes ───────────────────────────────────
+# ── Personalizar paquetes (releng + caelestia) ──────────────
 cat > "$PROFILE_DIR/packages.x86_64" <<'PACKAGES'
-# ── Base ──
+# ── Paquetes base releng ──
+alsa-utils
+amd-ucode
+arch-install-scripts
 base
 base-devel
-linux
-linux-firmware
-amd-ucode
+btrfs-progs
+cryptsetup
+dhcpcd
+diffutils
+dmidecode
+dosfstools
+e2fsprogs
+edk2-shell
+efibootmgr
+espeakup
+exfatprogs
+f2fs-tools
+fatresize
+fsarchiver
+gptfdisk
+grml-zsh-config
+grub
+hyperv
 intel-ucode
-syslinux
-sudo
+irqbalance
+iwd
+kbd
+keyutils
+lvm2
+lynx
+man-db
+man-pages
+mdadm
+memtest86+
+mkinitcpio
+mkinitcpio-netconf
+modemmanager
+mtools
+nano
+ndisc6
+netctl
+nfs-utils
+nmap
+ntfs-3g
+openbsd-netcat
+openssh
+openvswitch
+partclone
+parted
+partimage
+polkit
+ppp
+pptpd
+rp-pppoe
+rsync
+rxvt-unicode-terminfo
+screen
+sdparm
+smartmontools
+sof-firmware
+speech-dispatcher
+squashfs-tools
+terminus-font
+testdisk
+thin-provisioning-tools
+tpm2-tss
+usb_modeswitch
+usbutils
 vim
-networkmanager
-wpa_supplicant
+virt-viewer
+virt-what
+virtualbox-guest-utils
+voicename
+wget
+wireless-regdb
 wireless_tools
-dialog
+wpa_supplicant
+xdg-utils
+xfsprogs
+xl2tpd
+zsh
 
-# ── Hyprland / Wayland ──
+# ── Caelestia additions ──
 hyprland
 waybar
 wofi
@@ -64,9 +139,6 @@ polkit-kde-agent
 qt5-wayland
 qt6-wayland
 xdg-desktop-portal-hyprland
-xdg-utils
-
-# ── Aplicaciones ──
 kitty
 firefox
 thunar
@@ -77,8 +149,6 @@ gvfs-gphoto2
 gvfs-smb
 ranger
 nemo
-
-# ── Audio / Bluetooth ──
 pipewire
 pipewire-alsa
 pipewire-pulse
@@ -87,33 +157,22 @@ wireplumber
 pavucontrol
 bluez
 bluez-utils
-
-# ── Utilidades ──
 htop
 btop
 fastfetch
 unzip
 zip
-wget
 curl
 git
 p7zip
 ntfs-3g
 exfat-utils
-dosfstools
-man-db
-man-pages
-texinfo
-
-# ── Fuentes / Tema ──
 ttf-dejavu
 ttf-liberation
 ttf-jetbrains-mono-nerd
 noto-fonts
 noto-fonts-emoji
 adobe-source-code-pro-fonts
-
-# ── Herramientas extra ──
 firefox-i18n-es-es
 PACKAGES
 
