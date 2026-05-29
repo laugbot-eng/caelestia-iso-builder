@@ -1,18 +1,20 @@
 #!/bin/bash
 # ============================================================
-# Build script — ejecutado DENTRO del contenedor Docker
+# Build script — usa el perfil releng de archiso como base
 # ============================================================
 set -euo pipefail
 
 ISO_NAME="caelestia-linux-$(date +%Y%m%d)"
-ISO_DIR="/tmp/archlive-${ISO_NAME}"
 OUTPUT_DIR="/build/output"
+PROFILE_DIR="/tmp/archlive-${ISO_NAME}"
 
 mkdir -p "$OUTPUT_DIR"
-mkdir -p "$ISO_DIR"
 
-# ── Perfil base de archiso ──────────────────────────────────
-cat > "$ISO_DIR/profiledef.sh" <<'PROFILE'
+# ── Copiar perfil releng como base ──────────────────────────
+cp -r /usr/share/archiso/configs/releng/ "$PROFILE_DIR"
+
+# ── Personalizar profiledef.sh ──────────────────────────────
+cat > "$PROFILE_DIR/profiledef.sh" <<'PROFILE'
 #!/usr/bin/env bash
 # shellcheck disable=SC2034
 
@@ -22,7 +24,7 @@ iso_publisher="Caelestia Linux <https://github.com/laugbot-eng/caelestia-iso-bui
 iso_application="Caelestia Linux Live"
 iso_version="$(date +%Y.%m)"
 install_dir="arch"
-bootmodes=('bios.syslinux' 'uefi.systemd-boot')
+bootmodes=('bios.syslinux' 'uefi-x64.systemd-boot.esp' 'uefi-x64.systemd-boot.eltorito' 'uefi-ia32.systemd-boot.esp' 'uefi-ia32.systemd-boot.eltorito')
 arch="x86_64"
 pacman_conf="pacman.conf"
 airootfs_image_type="squashfs"
@@ -35,25 +37,8 @@ file_permissions=(
 )
 PROFILE
 
-# ── pacman.conf ─────────────────────────────────────────────
-cat > "$ISO_DIR/pacman.conf" <<'PACMAN'
-[options]
-ParallelDownloads = 5
-SigLevel = Required DatabaseOptional
-LocalFileSigLevel = Optional
-Architecture = auto
-
-[core]
-Include = /etc/pacman.d/mirrorlist
-
-[extra]
-Include = /etc/pacman.d/mirrorlist
-PACMAN
-
-# ── Paquetes ────────────────────────────────────────────────
-mkdir -p "$ISO_DIR/airootfs/root"
-
-cat > "$ISO_DIR/packages.x86_64" <<'PACKAGES'
+# ── Personalizar paquetes ───────────────────────────────────
+cat > "$PROFILE_DIR/packages.x86_64" <<'PACKAGES'
 # ── Base ──
 base
 base-devel
@@ -131,148 +116,11 @@ adobe-source-code-pro-fonts
 firefox-i18n-es-es
 PACKAGES
 
-# ── Syslinux BIOS config ────────────────────────────────────
-mkdir -p "$ISO_DIR/syslinux"
+# ── Añadir caelestia-shell ──────────────────────────────────
+mkdir -p "$PROFILE_DIR/airootfs/usr/local/bin"
 
-cat > "$ISO_DIR/syslinux/syslinux.cfg" <<'SYSCFG'
-DEFAULT select
-
-LABEL select
-COM32 whichsys.c32
-APPEND -pxe- pxe -sys- sys -iso- sys
-
-LABEL pxe
-CONFIG archiso_pxe.cfg
-
-LABEL sys
-CONFIG archiso_sys.cfg
-SYSCFG
-
-cat > "$ISO_DIR/syslinux/archiso_sys.cfg" <<'SYSSYS'
-INCLUDE archiso_head.cfg
-
-DEFAULT arch
-TIMEOUT 150
-
-INCLUDE archiso_sys-linux.cfg
-
-INCLUDE archiso_tail.cfg
-SYSSYS
-
-cat > "$ISO_DIR/syslinux/archiso_sys-linux.cfg" <<'SYSLNX'
-LABEL arch
-TEXT HELP
-Boot Caelestia Linux live on BIOS.
-ENDTEXT
-MENU LABEL Caelestia Linux (%ARCH%, BIOS)
-LINUX /%INSTALL_DIR%/boot/%ARCH%/vmlinuz-linux
-INITRD /%INSTALL_DIR%/boot/%ARCH%/initramfs-linux.img
-APPEND archisobasedir=%INSTALL_DIR% archisosearchuuid=%ARCHISO_UUID% quiet splash
-
-# Accessibility boot option
-LABEL archspeech
-TEXT HELP
-Boot Caelestia Linux on BIOS with speakup screen reader.
-ENDTEXT
-MENU LABEL Caelestia Linux (%ARCH%, BIOS) with ^speech
-LINUX /%INSTALL_DIR%/boot/%ARCH%/vmlinuz-linux
-INITRD /%INSTALL_DIR%/boot/%ARCH%/initramfs-linux.img
-APPEND archisobasedir=%INSTALL_DIR% archisosearchuuid=%ARCHISO_UUID% accessibility=on
-SYSLNX
-
-cat > "$ISO_DIR/syslinux/archiso_pxe.cfg" <<'PXESYS'
-INCLUDE archiso_head.cfg
-
-INCLUDE archiso_pxe-linux.cfg
-
-INCLUDE archiso_tail.cfg
-PXESYS
-
-cat > "$ISO_DIR/syslinux/archiso_pxe-linux.cfg" <<'PXELNX'
-LABEL arch_nbd
-TEXT HELP
-Boot Caelestia Linux using NBD.
-ENDTEXT
-MENU LABEL Caelestia Linux (%ARCH%, NBD)
-LINUX ::/%INSTALL_DIR%/boot/%ARCH%/vmlinuz-linux
-INITRD ::/%INSTALL_DIR%/boot/%ARCH%/initramfs-linux.img
-APPEND archisobasedir=%INSTALL_DIR% archisosearchuuid=%ARCHISO_UUID% archiso_nbd_srv=${pxeserver}
-SYSAPPEND 3
-
-LABEL arch_nfs
-TEXT HELP
-Boot Caelestia Linux using NFS.
-ENDTEXT
-MENU LABEL Caelestia Linux (%ARCH%, NFS)
-LINUX ::/%INSTALL_DIR%/boot/%ARCH%/vmlinuz-linux
-INITRD ::/%INSTALL_DIR%/boot/%ARCH%/initramfs-linux.img
-APPEND archisobasedir=%INSTALL_DIR% archiso_nfs_srv=${pxeserver}:/run/archiso/bootmnt
-SYSAPPEND 3
-
-LABEL arch_http
-TEXT HELP
-Boot Caelestia Linux using HTTP.
-ENDTEXT
-MENU LABEL Caelestia Linux (%ARCH%, HTTP)
-LINUX ::/%INSTALL_DIR%/boot/%ARCH%/vmlinuz-linux
-INITRD ::/%INSTALL_DIR%/boot/%ARCH%/initramfs-linux.img
-APPEND archisobasedir=%INSTALL_DIR% archiso_http_srv=http://${pxeserver}/
-SYSAPPEND 3
-PXELNX
-
-# ── EFI systemd-boot entries ────────────────────────────────
-mkdir -p "$ISO_DIR/efiboot/loader/entries"
-
-cat > "$ISO_DIR/efiboot/loader/loader.conf" <<'LOADER'
-default caelestia
-timeout 3
-console-mode max
-editor no
-LOADER
-
-cat > "$ISO_DIR/efiboot/loader/entries/caelestia.conf" <<'ENTRY'
-title   Caelestia Linux
-linux   /%INSTALL_DIR%/boot/%ARCH%/vmlinuz-linux
-initrd  /%INSTALL_DIR%/boot/intel-ucode.img
-initrd  /%INSTALL_DIR%/boot/amd-ucode.img
-initrd  /%INSTALL_DIR%/boot/%ARCH%/initramfs-linux.img
-options archisobasedir=%INSTALL_DIR% archisosearchuuid=%ARCHISO_UUID% quiet splash
-ENTRY
-
-# ── Configuración del sistema ───────────────────────────────
-mkdir -p "$ISO_DIR/airootfs/etc"
-mkdir -p "$ISO_DIR/airootfs/usr/local/bin"
-mkdir -p "$ISO_DIR/airootfs/etc/mkinitcpio.conf.d"
-
-# hostname
-echo "caelestia-linux" > "$ISO_DIR/airootfs/etc/hostname"
-
-# hosts
-cat > "$ISO_DIR/airootfs/etc/hosts" <<'HOSTS'
-127.0.0.1   localhost
-::1         localhost
-127.0.1.1   caelestia-linux.localdomain caelestia-linux
-HOSTS
-
-# mkinitcpio — hooks críticos para boot desde ISO
-cat > "$ISO_DIR/airootfs/etc/mkinitcpio.conf.d/archiso.conf" <<'MKINIT'
-HOOKS=(base udev microcode modconf kms memdisk archiso archiso_loop_mnt archiso_pxe_common archiso_pxe_nbd archiso_pxe_http archiso_pxe_nfs block filesystems keyboard)
-COMPRESSION="xz"
-COMPRESSION_OPTIONS=(-9e)
-MKINIT
-
-# locale
-echo "es_ES.UTF-8 UTF-8" > "$ISO_DIR/airootfs/etc/locale.gen"
-echo "en_US.UTF-8 UTF-8" >> "$ISO_DIR/airootfs/etc/locale.gen"
-echo "LANG=es_ES.UTF-8" > "$ISO_DIR/airootfs/etc/locale.conf"
-
-# keymap
-echo "KEYMAP=es" > "$ISO_DIR/airootfs/etc/vconsole.conf"
-
-# ── caelestia-shell ─────────────────────────────────────────
-cat > "$ISO_DIR/airootfs/usr/local/bin/caelestia-shell" <<'CSHELL'
+cat > "$PROFILE_DIR/airootfs/usr/local/bin/caelestia-shell" <<'CSHELL'
 #!/bin/bash
-# Caelestia Shell — lanzador interactivo minimalista
 echo "╔══════════════════════════════════════╗"
 echo "║   Caelestia Linux - $(date +%Y)              ║"
 echo "╚══════════════════════════════════════╝"
@@ -294,10 +142,10 @@ while true; do
     esac
 done
 CSHELL
-chmod +x "$ISO_DIR/airootfs/usr/local/bin/caelestia-shell"
+chmod +x "$PROFILE_DIR/airootfs/usr/local/bin/caelestia-shell"
 
-# ── .bashrc para live ───────────────────────────────────────
-cat > "$ISO_DIR/airootfs/root/.bashrc" <<'BASHRC'
+# ── Personalizar .bashrc ────────────────────────────────────
+cat > "$PROFILE_DIR/airootfs/root/.bashrc" <<'BASHRC'
 alias ls='ls --color=auto'
 alias ll='ls -lah'
 alias la='ls -A'
@@ -307,15 +155,16 @@ fastfetch
 caelestia-shell
 BASHRC
 
-# ── Sudoers ─────────────────────────────────────────────────
-mkdir -p "$ISO_DIR/airootfs/etc/sudoers.d"
-echo "root ALL=(ALL) ALL" > "$ISO_DIR/airootfs/etc/sudoers.d/root"
-echo "live ALL=(ALL) NOPASSWD: ALL" > "$ISO_DIR/airootfs/etc/sudoers.d/live"
+# ── hostname ────────────────────────────────────────────────
+echo "caelestia-linux" > "$PROFILE_DIR/airootfs/etc/hostname"
+
+# ── Teclado español ─────────────────────────────────────────
+echo "KEYMAP=es" > "$PROFILE_DIR/airootfs/etc/vconsole.conf"
 
 # ── Construir ISO ───────────────────────────────────────────
 cd /tmp
 echo "=== Construyendo ISO ==="
-mkarchiso -v -w /tmp/work -o "$OUTPUT_DIR" "$ISO_DIR" 2>&1
+mkarchiso -v -w /tmp/work -o "$OUTPUT_DIR" "$PROFILE_DIR" 2>&1
 
 echo ""
 echo "=== ISO generada ==="
