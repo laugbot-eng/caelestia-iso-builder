@@ -132,6 +132,7 @@ zsh
 
 # ── Caelestia additions ──
 hyprland
+syslinux
 waybar
 wofi
 dunst
