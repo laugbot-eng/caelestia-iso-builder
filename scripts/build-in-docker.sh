@@ -120,7 +120,6 @@ vim
 virt-viewer
 virt-what
 virtualbox-guest-utils
-voicename
 wget
 wireless-regdb
 wireless_tools
