@@ -242,6 +242,7 @@ ENTRY
 # ── Configuración del sistema ───────────────────────────────
 mkdir -p "$ISO_DIR/airootfs/etc"
 mkdir -p "$ISO_DIR/airootfs/usr/local/bin"
+mkdir -p "$ISO_DIR/airootfs/etc/mkinitcpio.conf.d"
 
 # hostname
 echo "caelestia-linux" > "$ISO_DIR/airootfs/etc/hostname"
@@ -252,6 +253,13 @@ cat > "$ISO_DIR/airootfs/etc/hosts" <<'HOSTS'
 ::1         localhost
 127.0.1.1   caelestia-linux.localdomain caelestia-linux
 HOSTS
+
+# mkinitcpio — hooks críticos para boot desde ISO
+cat > "$ISO_DIR/airootfs/etc/mkinitcpio.conf.d/archiso.conf" <<'MKINIT'
+HOOKS=(base udev microcode modconf kms memdisk archiso archiso_loop_mnt archiso_pxe_common archiso_pxe_nbd archiso_pxe_http archiso_pxe_nfs block filesystems keyboard)
+COMPRESSION="xz"
+COMPRESSION_OPTIONS=(-9e)
+MKINIT
 
 # locale
 echo "es_ES.UTF-8 UTF-8" > "$ISO_DIR/airootfs/etc/locale.gen"
