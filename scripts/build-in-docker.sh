@@ -24,7 +24,8 @@ iso_publisher="Caelestia Linux <https://github.com/laugbot-eng/caelestia-iso-bui
 iso_application="Caelestia Linux Live"
 iso_version="$(date +%Y.%m)"
 install_dir="arch"
-bootmodes=('bios.syslinux' 'uefi-x64.systemd-boot.esp' 'uefi-x64.systemd-boot.eltorito' 'uefi-ia32.systemd-boot.esp' 'uefi-ia32.systemd-boot.eltorito')
+bootmodes=('bios.syslinux'
+           'uefi.systemd-boot')
 arch="x86_64"
 pacman_conf="pacman.conf"
 airootfs_image_type="squashfs"
